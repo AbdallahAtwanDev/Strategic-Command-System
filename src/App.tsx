@@ -384,10 +384,10 @@ export default function App() {
                   style={{
                     left: '0px',
                     bottom: '0px',
-                    width: isTouchDevice ? '180px' : '259px',
-                    height: isTouchDevice ? '46px' : '66px',
-                    lineHeight: '0px',
-                    letterSpacing: '-28.3px',
+                    width: isTouchDevice ? '220px' : '259px',
+                    height: isTouchDevice ? '56px' : '66px',
+                    lineHeight: '1',
+                    letterSpacing: 'normal',
                   }}
                 >
                   <Branding size="xs" />
