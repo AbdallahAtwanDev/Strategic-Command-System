@@ -22,6 +22,7 @@ export default function App() {
   const [newPlayer, setNewPlayer] = useState('');
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [touchDraggingPlayerId, setTouchDraggingPlayerId] = useState<string | null>(null);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const captureRef = useRef<HTMLDivElement>(null);
@@ -37,7 +38,13 @@ export default function App() {
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(pointer: coarse)');
-    const updateDeviceType = () => setIsTouchDevice(mediaQuery.matches);
+    const updateDeviceType = () => {
+      const hasTouch =
+        mediaQuery.matches ||
+        'ontouchstart' in window ||
+        navigator.maxTouchPoints > 0;
+      setIsTouchDevice(hasTouch);
+    };
     updateDeviceType();
     mediaQuery.addEventListener('change', updateDeviceType);
     return () => mediaQuery.removeEventListener('change', updateDeviceType);
@@ -71,18 +78,6 @@ export default function App() {
       [teamKey]: {
         ...currentTeam,
         players: currentTeam.players.filter((player) => player.id !== id),
-        placements,
-      },
-    });
-  };
-
-  const removeFromMap = (id: string) => {
-    const placements = { ...currentTeam.placements };
-    delete placements[id];
-    setState({
-      ...state,
-      [teamKey]: {
-        ...currentTeam,
         placements,
       },
     });
@@ -131,6 +126,18 @@ export default function App() {
     if (!point) return;
     setPlayerPosition(selectedPlayerId, point.x, point.y);
     setSelectedPlayerId(null);
+  };
+
+  const handleMapPointerMove: PointerEventHandler<HTMLDivElement> = (event) => {
+    if (!isTouchDevice || !touchDraggingPlayerId) return;
+    const point = getRelativeCoordinates(event.clientX, event.clientY);
+    if (!point) return;
+    setPlayerPosition(touchDraggingPlayerId, point.x, point.y);
+  };
+
+  const handleMapPointerUp: PointerEventHandler<HTMLDivElement> = () => {
+    if (!isTouchDevice) return;
+    setTouchDraggingPlayerId(null);
   };
 
   const handleExport = async () => {
@@ -255,7 +262,7 @@ export default function App() {
           </div>
           {isTouchDevice ? (
             <p className="mb-3 text-xs text-zinc-400">
-              على الهاتف: اضغط اللاعب ثم اضغط مكانه داخل الخريطة.
+              على الهاتف: اسحب الاسم داخل الصورة لتحريكه، أو اضغط لاعبًا من القائمة ثم اضغط مكانه داخل الخريطة.
             </p>
           ) : null}
           <div className="pr-1 space-y-2 overflow-auto max-h-[40vh] sm:max-h-[60vh]">
@@ -296,7 +303,10 @@ export default function App() {
               onDragOver={(event) => event.preventDefault()}
               onDrop={handleDropOnMap}
               onPointerDown={handleMapPointerDown}
-              className={`relative overflow-hidden bg-center bg-cover border rounded-lg aspect-video border-zinc-700 ${selectedPlayerId ? 'ring-2 ring-yellow-400/70' : ''}`}
+              onPointerMove={handleMapPointerMove}
+              onPointerUp={handleMapPointerUp}
+              onPointerCancel={handleMapPointerUp}
+              className={`relative overflow-hidden bg-center bg-cover border rounded-lg aspect-video border-zinc-700 touch-none ${selectedPlayerId ? 'ring-2 ring-yellow-400/70' : ''}`}
               style={{ backgroundImage: "url('/map-bg.png')" }}
             >
               <div className="absolute inset-0 pointer-events-none bg-black/20" />
@@ -314,13 +324,37 @@ export default function App() {
                       event.stopPropagation();
                       setSelectedPlayerId(placement.playerId);
                     }}
+                    onPointerDown={(event) => {
+                      if (!isTouchDevice) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      setTouchDraggingPlayerId(placement.playerId);
+                      setSelectedPlayerId(null);
+                    }}
+                    onPointerMove={(event) => {
+                      if (!isTouchDevice || touchDraggingPlayerId !== placement.playerId) return;
+                      const point = getRelativeCoordinates(event.clientX, event.clientY);
+                      if (!point) return;
+                      setPlayerPosition(placement.playerId, point.x, point.y);
+                    }}
+                    onPointerUp={(event) => {
+                      if (!isTouchDevice) return;
+                      event.currentTarget.releasePointerCapture(event.pointerId);
+                      setTouchDraggingPlayerId(null);
+                    }}
+                    onPointerCancel={(event) => {
+                      if (!isTouchDevice) return;
+                      event.currentTarget.releasePointerCapture(event.pointerId);
+                      setTouchDraggingPlayerId(null);
+                    }}
                     onDragStart={(event) => {
                       if (isTouchDevice) return;
                       event.dataTransfer.setData('text/player-id', placement.playerId);
                       setDraggingPlayerId(placement.playerId);
                     }}
                     onDragEnd={() => setDraggingPlayerId(null)}
-                    className={`absolute max-w-[38%] sm:max-w-[34%] px-0.5 py-0 ${isLongName ? 'text-[6px]' : 'text-[7px]'} sm:text-[11px] font-semibold leading-tight text-zinc-950 border rounded group bg-white/35 border-white/45 cursor-move`}
+                    className={`absolute max-w-[38%] sm:max-w-[34%] px-0.5 py-0 ${isLongName ? 'text-[6px]' : 'text-[7px]'} sm:text-[11px] font-semibold leading-tight text-zinc-950 border rounded group bg-white/35 border-white/45 cursor-move touch-none`}
                     style={{
                       left: `${placement.x}%`,
                       top: `${placement.y}%`,
@@ -331,30 +365,6 @@ export default function App() {
                     <span className="inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-middle">
                       {player.name}
                     </span>
-                    {!isExporting ? (
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          removeFromMap(player.id);
-                        }}
-                        className="inline-flex mr-1 text-red-500 transition-colors sm:hidden hover:text-red-300"
-                        title="إزالة من الخريطة"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    ) : null}
-                    {!isExporting ? (
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          removeFromMap(player.id);
-                        }}
-                        className="hidden mr-2 text-red-400 transition-colors sm:group-hover:inline hover:text-red-300"
-                        title="إزالة من الخريطة"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    ) : null}
                   </div>
                 );
               })}
