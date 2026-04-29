@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { DragEventHandler, MouseEventHandler } from 'react';
+import type { DragEventHandler, PointerEventHandler } from 'react';
 import { Login } from './features/auth/Login';
 import { Branding } from './components/Branding';
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -125,7 +125,7 @@ export default function App() {
     setDraggingPlayerId(null);
   };
 
-  const handleMapClick: MouseEventHandler<HTMLDivElement> = (event) => {
+  const handleMapPointerDown: PointerEventHandler<HTMLDivElement> = (event) => {
     if (!isTouchDevice || !selectedPlayerId) return;
     const point = getRelativeCoordinates(event.clientX, event.clientY);
     if (!point) return;
@@ -262,12 +262,13 @@ export default function App() {
             {currentTeam.players.map((player) => (
               <div
                 key={player.id}
-                draggable
+                draggable={!isTouchDevice}
                 onClick={() => {
                   if (!isTouchDevice) return;
                   setSelectedPlayerId(player.id);
                 }}
                 onDragStart={(event) => {
+                  if (isTouchDevice) return;
                   event.dataTransfer.setData('text/player-id', player.id);
                   setDraggingPlayerId(player.id);
                 }}
@@ -294,7 +295,7 @@ export default function App() {
               ref={mapRef}
               onDragOver={(event) => event.preventDefault()}
               onDrop={handleDropOnMap}
-              onClick={handleMapClick}
+              onPointerDown={handleMapPointerDown}
               className={`relative overflow-hidden bg-center bg-cover border rounded-lg aspect-video border-zinc-700 ${selectedPlayerId ? 'ring-2 ring-yellow-400/70' : ''}`}
               style={{ backgroundImage: "url('/map-bg.png')" }}
             >
@@ -307,8 +308,14 @@ export default function App() {
                 return (
                   <div
                     key={placement.playerId}
-                    draggable
+                    draggable={!isTouchDevice}
+                    onClick={(event) => {
+                      if (!isTouchDevice) return;
+                      event.stopPropagation();
+                      setSelectedPlayerId(placement.playerId);
+                    }}
                     onDragStart={(event) => {
+                      if (isTouchDevice) return;
                       event.dataTransfer.setData('text/player-id', placement.playerId);
                       setDraggingPlayerId(placement.playerId);
                     }}
@@ -326,7 +333,22 @@ export default function App() {
                     </span>
                     {!isExporting ? (
                       <button
-                        onClick={() => removeFromMap(player.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          removeFromMap(player.id);
+                        }}
+                        className="inline-flex mr-1 text-red-500 transition-colors sm:hidden hover:text-red-300"
+                        title="إزالة من الخريطة"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    ) : null}
+                    {!isExporting ? (
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          removeFromMap(player.id);
+                        }}
                         className="hidden mr-2 text-red-400 transition-colors sm:group-hover:inline hover:text-red-300"
                         title="إزالة من الخريطة"
                       >
