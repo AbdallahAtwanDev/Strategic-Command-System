@@ -144,8 +144,17 @@ export default function App() {
     if (!captureRef.current) return;
     setIsExporting(true);
 
+    // Ensure the export stamp and fonts are painted before capture, especially on mobile.
     await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 80);
     });
 
     try {
@@ -153,6 +162,7 @@ export default function App() {
       const dataUrl = await toPng(captureRef.current, {
         cacheBust: true,
         pixelRatio: exportPixelRatio,
+        backgroundColor: '#18181b',
       });
       const link = document.createElement('a');
       link.download = `GOV-Strategy-${state.activeTeam}.png`;
