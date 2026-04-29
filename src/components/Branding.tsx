@@ -3,14 +3,14 @@ import React from 'react';
 type BrandingSize = 'xs' | 'sm' | 'lg';
 
 const sizeClasses: Record<BrandingSize, string> = {
-  xs: 'scale-[0.38]',
+  xs: 'scale-[0.2] sm:scale-[0.38]',
   sm: 'scale-75',
   lg: 'scale-100',
 };
 
 export const Branding: React.FC<{ size?: BrandingSize }> = ({ size = 'lg' }) => (
   <div
-    className={`items-start w-max ${sizeClasses[size]} ${size === 'xs' ? 'grid text-left' : 'flex flex-col'}`}
+    className={`items-start w-max ${sizeClasses[size]} ${size === 'xs' ? 'origin-bottom-left grid text-left' : 'flex flex-col'}`}
     style={size === 'xs' ? { flexFlow: 'row' } : undefined}
   >
     <h1

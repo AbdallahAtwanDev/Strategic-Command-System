@@ -1,11 +1,12 @@
-import { useMemo, useRef, useState } from 'react';
-import type { DragEventHandler } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { DragEventHandler, MouseEventHandler } from 'react';
 import { Login } from './features/auth/Login';
 import { Branding } from './components/Branding';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type { Player, SystemState } from './types';
 import { Download, Plus, Trash2 } from 'lucide-react';
 import { toPng } from 'html-to-image';
+import { motion } from 'framer-motion';
 
 const initialState: SystemState = {
   teamA: { players: [], placements: {} },
@@ -16,12 +17,31 @@ const initialState: SystemState = {
 export default function App() {
   const [adminName, setAdminName] = useLocalStorage<string>('gov_admin_name', '');
   const [isLogged, setIsLogged] = useState(Boolean(adminName));
+  const [showIntro, setShowIntro] = useState(true);
   const [state, setState] = useLocalStorage<SystemState>('gov_data_v1', initialState);
   const [newPlayer, setNewPlayer] = useState('');
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const captureRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setShowIntro(false);
+    }, 2200);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(pointer: coarse)');
+    const updateDeviceType = () => setIsTouchDevice(mediaQuery.matches);
+    updateDeviceType();
+    mediaQuery.addEventListener('change', updateDeviceType);
+    return () => mediaQuery.removeEventListener('change', updateDeviceType);
+  }, []);
 
   const teamKey = state.activeTeam === 'A' ? 'teamA' : 'teamB';
   const currentTeam = state[teamKey];
@@ -105,6 +125,14 @@ export default function App() {
     setDraggingPlayerId(null);
   };
 
+  const handleMapClick: MouseEventHandler<HTMLDivElement> = (event) => {
+    if (!isTouchDevice || !selectedPlayerId) return;
+    const point = getRelativeCoordinates(event.clientX, event.clientY);
+    if (!point) return;
+    setPlayerPosition(selectedPlayerId, point.x, point.y);
+    setSelectedPlayerId(null);
+  };
+
   const handleExport = async () => {
     if (!captureRef.current) return;
     setIsExporting(true);
@@ -128,6 +156,38 @@ export default function App() {
     }
   };
 
+  if (showIntro) {
+    return (
+      <div className="relative flex items-center justify-center min-h-screen overflow-hidden text-right bg-zinc-950" dir="rtl">
+        <motion.div
+          className="absolute rounded-full -top-24 -left-24 size-80 bg-yellow-400/10 blur-3xl"
+          animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.55, 0.3] }}
+          transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute rounded-full -bottom-24 -right-24 size-96 bg-blue-500/10 blur-3xl"
+          animate={{ scale: [1.1, 1, 1.1], opacity: [0.35, 0.5, 0.35] }}
+          transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: 'easeOut' }}
+          className="relative z-10 flex flex-col items-center gap-6 p-6 border w-[min(95%,620px)] rounded-2xl border-zinc-700 bg-zinc-900/90"
+        >
+          <Branding size="lg" />
+          <motion.p
+            className="text-sm tracking-widest text-zinc-300"
+            animate={{ opacity: [0.35, 1, 0.35] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            جاري تحميل النظام...
+          </motion.p>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (!isLogged) {
     return (
       <Login
@@ -140,35 +200,49 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen p-4 text-right bg-zinc-950" dir="rtl">
-      <div className="flex flex-col gap-3 p-4 mb-6 border sm:flex-row sm:items-center sm:justify-between bg-zinc-900 rounded-xl border-zinc-800">
+    <div className="min-h-screen p-3 text-right bg-zinc-950 sm:p-4" dir="rtl">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="flex flex-col gap-3 p-4 mb-6 border sm:flex-row sm:items-center sm:justify-between bg-zinc-900 rounded-xl border-zinc-800"
+      >
         <div className="flex flex-col items-start gap-1">
           <Branding size="sm" />
           <span className="text-xs text-zinc-400">القائد المسؤول: {adminName}</span>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => setState({ ...state, activeTeam: 'A' })}
             className={`px-4 py-2 rounded-lg font-bold transition-all ${state.activeTeam === 'A' ? 'bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)]' : 'bg-zinc-800'}`}
           >
             فريق A
-          </button>
-          <button
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => setState({ ...state, activeTeam: 'B' })}
             className={`px-4 py-2 rounded-lg font-bold transition-all ${state.activeTeam === 'B' ? 'bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-zinc-800'}`}
           >
             فريق B
-          </button>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        <div className="p-4 border lg:col-span-1 bg-zinc-900 rounded-xl border-zinc-800">
-          <h3 className="flex items-center justify-between mb-4 font-bold text-yellow-400">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-4">
+        <motion.div
+          initial={{ opacity: 0, x: 18 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.45, ease: 'easeOut', delay: 0.1 }}
+          className="p-4 border lg:col-span-1 bg-zinc-900 rounded-xl border-zinc-800"
+        >
+          <h3 className="flex items-center justify-between mb-3 font-bold text-yellow-400 sm:mb-4">
             قائمة اللاعبين
             <span className="px-2 py-1 text-xs rounded bg-zinc-800 text-zinc-400">{currentTeam.players.length}</span>
           </h3>
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-3 sm:mb-4">
             <input
               value={newPlayer}
               onChange={(event) => setNewPlayer(event.target.value)}
@@ -179,17 +253,26 @@ export default function App() {
               <Plus size={16} />
             </button>
           </div>
+          {isTouchDevice ? (
+            <p className="mb-3 text-xs text-zinc-400">
+              على الهاتف: اضغط اللاعب ثم اضغط مكانه داخل الخريطة.
+            </p>
+          ) : null}
           <div className="pr-1 space-y-2 overflow-auto max-h-[40vh] sm:max-h-[60vh]">
             {currentTeam.players.map((player) => (
               <div
                 key={player.id}
                 draggable
+                onClick={() => {
+                  if (!isTouchDevice) return;
+                  setSelectedPlayerId(player.id);
+                }}
                 onDragStart={(event) => {
                   event.dataTransfer.setData('text/player-id', player.id);
                   setDraggingPlayerId(player.id);
                 }}
                 onDragEnd={() => setDraggingPlayerId(null)}
-                className={`flex items-center justify-between p-2 transition-all border rounded bg-zinc-800/50 border-zinc-700/50 hover:border-zinc-600 ${draggingPlayerId === player.id ? 'opacity-40' : ''}`}
+                className={`flex items-center justify-between min-h-11 p-2 transition-all border rounded bg-zinc-800/50 border-zinc-700/50 hover:border-zinc-600 hover:scale-[1.01] ${draggingPlayerId === player.id ? 'opacity-40' : ''} ${selectedPlayerId === player.id ? 'border-yellow-400 ring-1 ring-yellow-400/60' : ''}`}
               >
                 <span className="text-sm">{player.name}</span>
                 <button onClick={() => removePlayer(player.id)} className="p-1 transition-colors text-zinc-500 hover:text-red-500">
@@ -198,21 +281,28 @@ export default function App() {
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
 
-        <div className="flex flex-col gap-4 lg:col-span-3">
+        <motion.div
+          initial={{ opacity: 0, x: -18 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.45, ease: 'easeOut', delay: 0.2 }}
+          className="flex flex-col gap-4 lg:col-span-3"
+        >
           <div ref={captureRef} className="relative p-4 border bg-zinc-900 rounded-xl border-zinc-800">
             <div
               ref={mapRef}
               onDragOver={(event) => event.preventDefault()}
               onDrop={handleDropOnMap}
-              className="relative overflow-hidden bg-center bg-cover border rounded-lg aspect-video border-zinc-700"
+              onClick={handleMapClick}
+              className={`relative overflow-hidden bg-center bg-cover border rounded-lg aspect-video border-zinc-700 ${selectedPlayerId ? 'ring-2 ring-yellow-400/70' : ''}`}
               style={{ backgroundImage: "url('/map-bg.png')" }}
             >
               <div className="absolute inset-0 pointer-events-none bg-black/20" />
               {placedPlayers.map((placement) => {
                 const player = currentTeam.players.find((item) => item.id === placement.playerId);
                 if (!player) return null;
+                const isLongName = player.name.length > 12;
 
                 return (
                   <div
@@ -223,7 +313,7 @@ export default function App() {
                       setDraggingPlayerId(placement.playerId);
                     }}
                     onDragEnd={() => setDraggingPlayerId(null)}
-                    className="absolute max-w-[55%] sm:max-w-[34%] px-2 py-1 text-[10px] sm:text-[11px] font-semibold leading-tight text-white border rounded group bg-zinc-900/90 border-zinc-500 cursor-move"
+                    className={`absolute max-w-[38%] sm:max-w-[34%] px-0.5 py-0 ${isLongName ? 'text-[6px]' : 'text-[7px]'} sm:text-[11px] font-semibold leading-tight text-zinc-950 border rounded group bg-white/35 border-white/45 cursor-move`}
                     style={{
                       left: `${placement.x}%`,
                       top: `${placement.y}%`,
@@ -234,20 +324,29 @@ export default function App() {
                     <span className="inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-middle">
                       {player.name}
                     </span>
-                    <button
-                      onClick={() => removeFromMap(player.id)}
-                      className="hidden mr-2 text-red-400 transition-colors group-hover:inline hover:text-red-300"
-                      title="إزالة من الخريطة"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    {!isExporting ? (
+                      <button
+                        onClick={() => removeFromMap(player.id)}
+                        className="hidden mr-2 text-red-400 transition-colors sm:group-hover:inline hover:text-red-300"
+                        title="إزالة من الخريطة"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    ) : null}
                   </div>
                 );
               })}
               {isExporting ? (
                 <div
-                  className="absolute bottom-0 left-0 z-20 origin-bottom-left pointer-events-none"
-                  style={{ width: '259px', height: '66px', lineHeight: '0px', letterSpacing: '-28.3px' }}
+                  className="absolute bottom-0 left-0 z-20 flex items-end justify-start overflow-hidden origin-bottom-left pointer-events-none"
+                  style={{
+                    left: '0px',
+                    bottom: '0px',
+                    width: isTouchDevice ? '180px' : '259px',
+                    height: isTouchDevice ? '46px' : '66px',
+                    lineHeight: '0px',
+                    letterSpacing: '-28.3px',
+                  }}
                 >
                   <Branding size="xs" />
                 </div>
@@ -255,13 +354,15 @@ export default function App() {
             </div>
           </div>
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
             onClick={handleExport}
             className="flex items-center justify-center w-full gap-2 py-3 font-bold transition-all bg-green-600 rounded-lg hover:bg-green-700 active:scale-[0.98]"
           >
             <Download size={20} /> استخراج الخريطة النهائية
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
       </div>
     </div>
   );
